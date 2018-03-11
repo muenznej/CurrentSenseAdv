@@ -23,8 +23,11 @@ INA219_brzo ina(INA_SCL, INA_SDA); //INA219_brzo ina(D2,D1)
 INA219 ina(INA_SCL, INA_SDA); //INA219 ina(D2,D1)
 #endif
 
-#define OLED_SCL D4
-#define OLED_SDA D3
+//#define OLED_SCL D4
+//#define OLED_SDA D3
+
+#define OLED_SCL D2
+#define OLED_SDA D1
 #ifdef BRZO
 #include "SSD1306Brzo.h"
 SSD1306Brzo display(0x3c, OLED_SDA, OLED_SCL );
@@ -93,35 +96,38 @@ void setup() {
   ui.setIndicatorPosition(BOTTOM); // location
   ui.setIndicatorDirection(LEFT_RIGHT);
   ui.setFrameAnimation(SLIDE_LEFT);
+  ui.setTimePerFrame(1000); // whatever unit this is
+  ui.setTimePerTransition(200); // weuti
 
   // Add frames
   ui.setFrames(frames, frameCount);
   ui.setOverlays(overlays, overlaysCount);
 
- // ui.init();
+  ui.init();
 
   display.flipScreenVertically();
 
 }
 #define READ_LIMIT 1000
 void loop() {
-  //int remainingTimeBudget = ui.update();
+  int remainingTimeBudget = ui.update();
+  if (remainingTimeBudget > 0) {
+    cnt++;
+    if (cnt == 1) {
+      t1 = micros();
+    }
+    ina_current = ina.readShuntCurrent();
 
-  cnt++;
-  if (cnt == 1) {
-    t1 = micros();
-  }
-  ina_current = ina.readShuntCurrent();
-
-  if (cnt == READ_LIMIT) {
-    t2 = micros();
-    Serial.print((float)(t2 - t1) / READ_LIMIT, 1);
-    Serial.print(" µs/READ; ");
-    Serial.print(ina_current * 1000.0, 2);
-    Serial.print(" mA;");
-    Serial.println("");
-    Serial.println("");
-    cnt = 0;
+    if (cnt == READ_LIMIT) {
+      t2 = micros();
+      Serial.print((float)(t2 - t1) / READ_LIMIT, 1);
+      Serial.print(" µs/READ; ");
+      Serial.print(ina_current * 1000.0, 2);
+      Serial.print(" mA;");
+      Serial.println("");
+      Serial.println("");
+      cnt = 0;
+    }
   }
 
 }
