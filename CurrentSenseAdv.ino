@@ -1,4 +1,4 @@
-//#define BRZO
+#define BRZO
 
 #ifdef BRZO
 #include <brzo_i2c.h>
