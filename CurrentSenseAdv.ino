@@ -1,5 +1,6 @@
+
 #define BRZO
-#define BRZO_I2C_DISABLE_INTERRUPTS 0
+//#define BRZO_I2C_DISABLE_INTERRUPTS 0
 
 #ifdef BRZO
 #include <brzo_i2c.h>
@@ -55,8 +56,8 @@ SSD1306 display(0x3c, OLED_SDA, OLED_SCL);
 OLEDDisplayUi ui     ( &display );
 #include "my_icons.h"
 
-#define MAX_CURRENT 0.01 // A
-#define MAX_VOLTAGE 5.00 // V
+#define MAX_CURRENT 0.05 // A
+#define MAX_VOLTAGE 6.00 // V
 unsigned long t1;
 unsigned long t2;
 
@@ -64,9 +65,11 @@ unsigned long t2;
 float cur_buf[128];
 float bus_buf[128];
 
+byte iw = 128;
+byte ih = 64;
 byte bf_cnt = 0;
-float scl_y_current = 64 / MAX_CURRENT;
-float scl_y_bus = 64 / MAX_VOLTAGE;
+float scl_y_current = ih / MAX_CURRENT;
+float scl_y_bus = ih / MAX_VOLTAGE;
 float scl_x_time = 0;
 uint16_t tx = 0;
 float scl_x = 1;
@@ -117,7 +120,7 @@ void StatusOverlay(OLEDDisplay * display, OLEDDisplayUiState * state) {
 
   float mean_cur = 0;
   float mean_bus = 0;
-  for ( int ii = 0; ii <= 127; ii++)  {
+  for ( int ii = 0; ii <= READ_LIMIT; ii++)  {
     mean_cur += cur_buf[ ii ];
     mean_bus += bus_buf[ ii ];
   }
@@ -130,9 +133,9 @@ void StatusOverlay(OLEDDisplay * display, OLEDDisplayUiState * state) {
   if (stateOverlay >= 1) {
     display->setFont(ArialMT_Plain_10);
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(126, 0,  String(cur_scale.val) + " " + cur_scale.unit  + "A/div");
-    display->drawString(126, 12, String(bus_scale.val) + " " + bus_scale.unit  + "V/div");
-    display->drawString(126, 53, String(time_scale.val) + " " + time_scale.unit + "s/div");
+    display->drawString(iw-2, 0     ,  String(cur_scale.val) + " " + cur_scale.unit  + "A/div");
+    display->drawString(iw-2, 12    , String(bus_scale.val) + " " + bus_scale.unit  + "V/div");
+    display->drawString(iw-2, ih-11 , String(time_scale.val) + " " + time_scale.unit + "s/div");
   }
   if (stateOverlay >= 2) {
     display->setTextAlignment(TEXT_ALIGN_LEFT);
@@ -141,23 +144,23 @@ void StatusOverlay(OLEDDisplay * display, OLEDDisplayUiState * state) {
   }
 
   //GRID and FRAME
-  for (uint8_t xx = 8; xx <= 127; xx += 8) {
-    for (uint8_t yy = 8; yy <= 63; yy += 8) {
+  for (uint8_t xx = 8; xx <= (iw-1); xx += 8) {
+    for (uint8_t yy = 8; yy <= (ih-1); yy += 8) {
       display->setPixel(xx, yy);
     }
   }
-  display->drawRect(0, 0, 128, 64);
+  display->drawRect(0, 0, iw, ih);
 }
 
 void drawFrameMy(OLEDDisplay * display, OLEDDisplayUiState * state, int16_t x, int16_t y) {
   long yOffset = newPosition;
 
-  for ( int ii = 0; ii <= 127; ii++) {
+  for ( int ii = 0; ii <= (iw-1); ii++) {
     if (!(ii % 2)) {
-      int8_t cur_y_pos = yOffset + 63 - (byte)(cur_buf[ ii ] * scl_y_current);
+      int8_t cur_y_pos = yOffset + (ih-1) - (byte)(cur_buf[ ii ] * scl_y_current);
       display->setPixel(ii, cur_y_pos);
     } else {
-      display->setPixel(ii, 63 - (byte)(bus_buf[ ii ]*scl_y_bus));
+      display->setPixel(ii, (ih-1) - (byte)(bus_buf[ ii ]*scl_y_bus));
     }
 
   }
@@ -169,14 +172,13 @@ OverlayCallback overlays[] = { StatusOverlay, ScalerOverlay };
 int overlaysCount = 2;
 
 void setup() {
-//  pinMode(LED_BUILTIN, INPUT_PULLUP);
   unsigned long BAUDRATE = 500000;
   Serial.begin(BAUDRATE);
   Serial.println("Initialize INA219");
   Serial.println("-----------------------------------------------");
   ina.begin(0x40, CLK_SPEED);
   ina.configure(INA219_RANGE_16V, INA219_GAIN_40MV, INA219_BUS_RES_9BIT, INA219_SHUNT_RES_9BIT_1S, INA219_MODE_SHUNT_BUS_CONT);
-  ina.calibrate(0.1, MAX_CURRENT); // 0.1ohm, 500mA
+  ina.calibrate(0.1, MAX_CURRENT); // 0.1ohm, 50mA
   ina.checkConfig();
 
   ui.setTargetFPS(10); // target frames per second
@@ -231,17 +233,23 @@ void loop() {
     }
     if (!(bf_cnt % 2)) {
       cur_buf[ bf_cnt ] = ina.readShuntCurrent();
+      Serial.print(millis());
+      Serial.print(";");
+      Serial.print(cur_buf[ bf_cnt ]*1000.0,10);
+      Serial.println("");
     } else {
-      bus_buf[ bf_cnt ] = ina.readBusVoltage();
+      //bus_buf[ bf_cnt ] = ina.readBusVoltage();
+      bus_buf[ bf_cnt ] = 0;
     }
 
-    if (bf_cnt == 127) {
+    if (bf_cnt == READ_LIMIT) {
       bf_cnt = 0;
       t2 = micros();
-      scl_x_time = (float)(t2 - t1) / 128 / 1000000.0;
+      scl_x_time = (float)(t2 - t1) / READ_LIMIT / 1000000.0;
     }
     else {
       bf_cnt++;
     }
+    
   }
 }
